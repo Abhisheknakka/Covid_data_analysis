@@ -1,0 +1,149 @@
+---
+title: "Covid"
+author: "Sanjay Nanjundappa"
+date: "2024-03-28"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse) # metapackage with lots of helpful functions
+library(dplyr)
+library(plotly)
+library(ggplot2)
+library(IRdisplay)
+library(leaflet)
+library(leafpop)
+library(dplyr)
+library(purrr)
+
+
+confirmed_color <- "purple"
+active_color <- "#1f77b4"
+recovered_color <- "forestgreen"
+death_color <- "red"
+
+```
+
+
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+coronavirus <- read.csv("C:/Users/Admin/OneDrive/Documents/data analytics with R/Finsl_Assessment/coronavirus_dataset.csv")
+coronavirus  <- coronavirus %>% rename(dateVals=date)
+coronavirus$dateVals = as.Date(coronavirus$dateVals)
+
+```
+
+
+
+The hypothesis for the Chi-square Test of Independence regarding the association between country/region and the type of COVID-19 cases (e.g., confirmed, recovered, deceased) can be stated as follows:
+
+Null Hypothesis (H0): There is no significant difference in the mean number of confirmed cases across different time points within each country/region. Mathematically, this can be expressed as 
+
+Alternative Hypothesis (H1): There is a significant difference in the mean number of confirmed cases across different time points within each country/region
+
+
+In simpler terms, the null hypothesis suggests that the proportions of confirmed, recovered, and deceased cases are the same across all countries/regions, while the alternative hypothesis suggests that the proportions vary among countries/regions. The Chi-square test will help determine if there is enough evidence to reject the null hypothesis in favor of the alternative, indicating that there is indeed an association between country/region and the type of COVID-19 cases.
+
+
+Before conducting hypothesis we do 
+
+
+
+
+Graphs
+
+```{r}
+df <- coronavirus %>% 
+  dplyr::group_by(Country.Region, type) %>%
+  dplyr::summarise(total = sum(cases), .groups = "drop") %>%
+  tidyr::pivot_wider(names_from = type, 
+                     values_from = total) %>%
+  dplyr::mutate(unrecovered = confirmed - ifelse(is.na(recovered), 0, recovered) - ifelse(is.na(death), 0, death)) %>%
+  dplyr::arrange(-confirmed) %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(country = dplyr::if_else(Country.Region == "United Arab Emirates", "UAE", as.character(Country.Region))) %>%
+  dplyr::mutate(country = dplyr::if_else(country == "Mainland China", "China", as.character(country))) %>%
+  dplyr::mutate(country = dplyr::if_else(country == "North Macedonia", "N.Macedonia", as.character(country))) %>%
+  dplyr::mutate(country = trimws(country)) %>%
+  dplyr::mutate(country = factor(country, levels = country))
+
+df1 <- coronavirus %>% dplyr::filter(dateVals == max(dateVals))
+
+df_daily <- coronavirus %>% 
+  dplyr::group_by(dateVals, type) %>%
+  dplyr::summarise(total = sum(cases, na.rm = TRUE), .groups = "drop") %>%
+  tidyr::pivot_wider(names_from = type,
+                     values_from = total) %>%
+  dplyr::arrange(dateVals) %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(active =  confirmed - death - recovered) %>%
+  dplyr::mutate(confirmed_cum = cumsum(confirmed),
+                death_cum = cumsum(death),
+                recovered_cum = cumsum(recovered),
+                active_cum = cumsum(active))
+
+  
+
+df1 <- coronavirus %>% dplyr::filter(dateVals == max(dateVals))
+
+```
+
+
+
+Visulaizations
+
+```{r,split=FALSE, fig.align = 'default', warning = FALSE, out.width="100%"} 
+p<-plot_ly(data = df[1:30,], 
+        x = ~ country, 
+        y = ~ unrecovered, 
+        # text =  ~ confirmed, 
+        # textposition = 'auto',
+        type = "bar", 
+        name = "Active",
+        marker = list(color = active_color)) %>%
+    add_trace(y = ~ recovered, 
+        # text =  ~ recovered, 
+        # textposition = 'auto',
+        name = "Recovered",
+        marker = list(color = recovered_color)) %>%
+    add_trace(y = ~ death, 
+        # text =  ~ death, 
+        # textposition = 'auto',
+        name = "Death",
+        marker = list(color = death_color)) %>%
+    layout(barmode = 'stack',
+       yaxis = list(title = "Total Cases (log scaled)", type = "log"),
+       xaxis = list(title = ""),
+       hovermode = "compare",
+       margin =  list(
+           # l = 60,
+           # r = 40,
+           b = 10,
+           t = 10,
+           pad = 2
+        )
+      )
+
+ggplotly(p)
+```
+
+
+
+
+
+
+
+
+
+
+
