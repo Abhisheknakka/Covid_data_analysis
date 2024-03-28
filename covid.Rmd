@@ -37,7 +37,12 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
 ```{r cars}
-coronavirus <- read.csv("C:/Users/Admin/OneDrive/Documents/data analytics with R/Finsl_Assessment/coronavirus_dataset.csv")
+
+#change path
+base_folder <- "D:/Trent University/R ONLINE LECTURERS/Assignments/Covid_data_analysis/"
+inputfolder <- paste0(base_folder,"inputfiles/")
+
+coronavirus <- read.csv(paste0(inputfolder,"coronavirus_dataset.csv"))
 coronavirus  <- coronavirus %>% rename(dateVals=date)
 coronavirus$dateVals = as.Date(coronavirus$dateVals)
 
