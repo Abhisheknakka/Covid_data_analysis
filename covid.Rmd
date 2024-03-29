@@ -23,12 +23,10 @@ library(purrr)
 
 confirmed_color <- "purple"
 active_color <- "#1f77b4"
-recovered_color <- "forestgreen"
+confirmed_color <- "forestgreen"
 death_color <- "red"
 
 ```
-
-
 
 ## R Markdown
 
@@ -45,30 +43,12 @@ inputfolder <- paste0(base_folder,"inputfiles/")
 coronavirus <- read.csv(paste0(inputfolder,"coronavirus_dataset.csv"))
 coronavirus  <- coronavirus %>% rename(dateVals=date)
 coronavirus$dateVals = as.Date(coronavirus$dateVals)
-
 ```
 
-
-
-The hypothesis for the Chi-square Test of Independence regarding the association between country/region and the type of COVID-19 cases (e.g., confirmed, recovered, deceased) can be stated as follows:
-
-Null Hypothesis (H0): There is no significant difference in the mean number of confirmed cases across different time points within each country/region. Mathematically, this can be expressed as 
-
-Alternative Hypothesis (H1): There is a significant difference in the mean number of confirmed cases across different time points within each country/region
-
-
-In simpler terms, the null hypothesis suggests that the proportions of confirmed, recovered, and deceased cases are the same across all countries/regions, while the alternative hypothesis suggests that the proportions vary among countries/regions. The Chi-square test will help determine if there is enough evidence to reject the null hypothesis in favor of the alternative, indicating that there is indeed an association between country/region and the type of COVID-19 cases.
-
-
-Before conducting hypothesis we do 
-
-
-
-
-Graphs
+Data transformations
 
 ```{r}
-df <- coronavirus %>% 
+covid_data <- coronavirus %>% 
   dplyr::group_by(Country.Region, type) %>%
   dplyr::summarise(total = sum(cases), .groups = "drop") %>%
   tidyr::pivot_wider(names_from = type, 
@@ -82,45 +62,116 @@ df <- coronavirus %>%
   dplyr::mutate(country = trimws(country)) %>%
   dplyr::mutate(country = factor(country, levels = country))
 
-df1 <- coronavirus %>% dplyr::filter(dateVals == max(dateVals))
+covid_data = covid_data[,c("Country.Region","confirmed",'death',"recovered","unrecovered")]
+head(covid_data)
 
-df_daily <- coronavirus %>% 
-  dplyr::group_by(dateVals, type) %>%
-  dplyr::summarise(total = sum(cases, na.rm = TRUE), .groups = "drop") %>%
-  tidyr::pivot_wider(names_from = type,
-                     values_from = total) %>%
-  dplyr::arrange(dateVals) %>%
-  dplyr::ungroup() %>%
-  dplyr::mutate(active =  confirmed - death - recovered) %>%
-  dplyr::mutate(confirmed_cum = cumsum(confirmed),
-                death_cum = cumsum(death),
-                recovered_cum = cumsum(recovered),
-                active_cum = cumsum(active))
+```
 
-  
+### **Null Hypothesis (H0)**
 
-df1 <- coronavirus %>% dplyr::filter(dateVals == max(dateVals))
+- There is no correlation between confirmed cases and deaths.
+
+### **Alternative Hypothesis (H1)**
+
+- There is a correlation between confirmed cases and deaths.
+
+## **Assumptions**
+
+1.  **Outliers**: The observations has outliers or not.
+
+2.  **Normality**: The residuals of the model are normally distributed.
+
+3.  **Homogeneity of Variance**: The variance of the dependent variable is the same for all levels of the independent variable (Country).
+
+```{r}
+library(datarium)
+library(rstatix)
+covid_grouping <- group_by(covid_data,confirmed)
+get_summary_stats(covid_grouping, type = "mean_sd")
 
 ```
 
 
+Before conducting hypothesis we are going to check our assumptions
+
+1.  check if there are any outliers
+
+```{r}
+library(psych)
+library(rstatix)
+describe(covid_data, fast = TRUE)
+```
+
+```{r}
+identify_outliers(covid_data, confirmed)
+```
+
+```{r}
+identify_outliers(covid_data, death)
+x= identify_outliers(covid_data, death)
+
+```
+
+We have outliers
+
+```{r}
+# creating a subset of our dataset without that case.
+covid_noOutliers <- x[!(x$is.extreme==TRUE),]
+```
+
+
+2.  Normality test
+
+```{r}
+#Next, we need to test for normality of each of the variables.
+# Note: we can run the Shapiro-Wilks test on multiple variables at once
+
+shapiro_test(covid_noOutliers, vars = c("confirmed", "death"))
+```
+p-value is above 0.05, data is normal distribution
+
+
+3. Linearity
+```{r}
+# Plot confirmed cases against deaths with adjusted scales
+plot(covid_data$confirmed, covid_data$death,
+     xlim = c(0, max(covid_data$confirmed) * 1.1),  # Adjust x-axis limits
+     ylim = c(0, max(covid_data$death) * 1.1),      # Adjust y-axis limits
+     xlab = "Confirmed Cases",                      # Label for x-axis
+     ylab = "Deaths",                               # Label for y-axis
+     main = "Confirmed Cases vs Deaths")            # Main title for the plot
+```
+
+The points are scattered but very  close to each other. linearly growing as well
+
+
+Correlation test
+
+```{r}
+# Perform correlation test
+cor.test(covid_data$confirmed, covid_data$death, method = "pearson")
+```
+P-value is low, p-value is 2.2e-16 which is less than 0.05
+
+Since p-value from correlation is less than 0.05 we reject null hypothesis and say there is relation between confirmed and death cases in covid data.
+
 
 Visulaizations
 
-```{r,split=FALSE, fig.align = 'default', warning = FALSE, out.width="100%"} 
+```{r,split=FALSE, fig.align = 'default', warning = FALSE, out.width="100%"}
 p<-plot_ly(data = df[1:30,], 
-        x = ~ country, 
+        x = ~ Country.Region, 
         y = ~ unrecovered, 
         # text =  ~ confirmed, 
         # textposition = 'auto',
         type = "bar", 
         name = "Active",
         marker = list(color = active_color)) %>%
-    add_trace(y = ~ recovered, 
+    add_trace(y = ~ confirmed, 
         # text =  ~ recovered, 
         # textposition = 'auto',
         name = "Recovered",
-        marker = list(color = recovered_color)) %>%
+        marker = list(color = confirmed_color)) %>%
     add_trace(y = ~ death, 
         # text =  ~ death, 
         # textposition = 'auto',
@@ -141,14 +192,3 @@ p<-plot_ly(data = df[1:30,],
 
 ggplotly(p)
 ```
-
-
-
-
-
-
-
-
-
-
-
